@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Reply Radar</title>
+  <!-- Microsoft Teams SDK -->
+  <script src="https://res.cdn.office.net/teams-js/2.22.0/js/MicrosoftTeams.min.js"></script>
+  <!-- Microsoft Authentication Library (MSAL) -->
+  <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0e0f14; --surface: #16181f; --surface2: #1e2029;
+      --border: #2a2d3a; --accent: #f5a623; --accent2: #e85d5d;
+      --accent3: #4ecdc4; --text: #eeeef2; --muted: #6b6f82; --green: #5cb85c;
+    }
+    body { font-family: 'Syne', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 16px; }
+
+    /* Auth screen */
+    #authScreen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; gap: 20px; text-align: center; }
+    .logo-icon { width: 56px; height: 56px; background: var(--accent); border-radius: 14px; display: grid; place-items: center; font-size: 28px; margin: 0 auto; }
+    .auth-title { font-size: 1.5rem; font-weight: 800; }
+    .auth-sub { color: var(--muted); font-size: .85rem; max-width: 280px; line-height: 1.5; }
+    .sign-in-btn { background: var(--accent); color: #000; border: none; border-radius: 10px; padding: 12px 32px; font-weight: 800; font-size: .9rem; cursor: pointer; font-family: 'Syne', sans-serif; transition: background .15s; }
+    .sign-in-btn:hover { background: #ffc14d; }
+
+    /* Main app */
+    #mainApp { display: none; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-sm { width: 32px; height: 32px; background: var(--accent); border-radius: 8px; display: grid; place-items: center; font-size: 18px; }
+    .logo-text { font-size: 1rem; font-weight: 800; }
+    .scan-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 7px 14px; font-size: .72rem; font-weight: 700; cursor: pointer; font-family: 'Syne', sans-serif; transition: all .2s; }
+    .scan-btn:hover { border-color: var(--accent3); color: var(--accent3); }
+    .scan-btn:disabled { opacity: .5; cursor: default; }
+
+    .stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 18px; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; position: relative; overflow: hidden; }
+    .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--card-color, var(--accent)); }
+    .stat-num { font-size: 1.8rem; font-weight: 800; color: var(--card-color, var(--accent)); line-height: 1; }
+    .stat-label { font-size: .62rem; color: var(--muted); margin-top: 3px; letter-spacing: .5px; text-transform: uppercase; }
+
+    .filter-bar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+    .filter-btn { background: var(--surface); border: 1px solid var(--border); color: var(--muted); border-radius: 7px; padding: 6px 12px; font-size: .68rem; font-weight: 700; cursor: pointer; font-family: 'Syne', sans-serif; transition: all .15s; text-transform: uppercase; letter-spacing: .5px; }
+    .filter-btn.active, .filter-btn:hover { background: var(--accent); color: #000; border-color: var(--accent); }
+
+    .email-list { display: flex; flex-direction: column; gap: 10px; }
+    .email-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; position: relative; overflow: hidden; transition: border-color .2s; }
+    .email-card:hover { border-color: var(--accent); }
+    .email-card.urgent::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--accent2); border-radius: 4px 0 0 4px; }
+    .email-card.medium::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--accent); border-radius: 4px 0 0 4px; }
+    .email-card.low::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--muted); border-radius: 4px 0 0 4px; }
+    .email-from { font-size: .72rem; color: var(--muted); font-family: 'DM Mono', monospace; margin-bottom: 4px; padding-left: 8px; }
+    .email-subject { font-size: .9rem; font-weight: 700; padding-left: 8px; margin-bottom: 4px; }
+    .email-preview { font-size: .75rem; color: var(--muted); padding-left: 8px; line-height: 1.4; margin-bottom: 8px; }
+    .email-footer { display: flex; align-items: center; justify-content: space-between; padding-left: 8px; }
+    .email-age { font-size: .65rem; color: var(--muted); font-family: 'DM Mono', monospace; }
+    .email-btns { display: flex; gap: 6px; }
+    .reply-btn { background: var(--accent); color: #000; border: none; border-radius: 7px; padding: 7px 14px; font-size: .7rem; font-weight: 800; cursor: pointer; font-family: 'Syne', sans-serif; transition: background .15s; }
+    .reply-btn:hover { background: #ffc14d; }
+    .dismiss-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); border-radius: 7px; padding: 6px 10px; font-size: .7rem; cursor: pointer; font-family: 'Syne', sans-serif; transition: all .15s; }
+    .dismiss-btn:hover { color: var(--text); }
+
+    /* Loading */
+    #loadingScreen { display: none; flex-direction: column; align-items: center; justify-content: center; min-height: 200px; gap: 12px; }
+    .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Modal */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 100; place-items: center; }
+    .modal-overlay.open { display: grid; }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; width: 90%; max-width: 480px; padding: 24px; }
+    .modal-title { font-size: 1rem; font-weight: 800; margin-bottom: 4px; }
+    .modal-meta { font-size: .75rem; color: var(--muted); margin-bottom: 14px; }
+    .modal textarea { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'Syne', sans-serif; font-size: .85rem; padding: 12px; resize: vertical; min-height: 120px; outline: none; margin-bottom: 12px; }
+    .modal textarea:focus { border-color: var(--accent); }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .btn-send { background: var(--accent); color: #000; border: none; border-radius: 7px; padding: 9px 20px; font-weight: 800; font-size: .75rem; cursor: pointer; font-family: 'Syne', sans-serif; }
+    .btn-cancel { background: transparent; border: 1px solid var(--border); color: var(--muted); border-radius: 7px; padding: 9px 14px; font-size: .75rem; cursor: pointer; font-family: 'Syne', sans-serif; }
+
+    .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--green); color: #fff; padding: 10px 22px; border-radius: 30px; font-weight: 700; font-size: .8rem; transition: transform .3s; z-index: 200; white-space: nowrap; }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .error-msg { color: var(--accent2); font-size: .8rem; text-align: center; padding: 20px; }
+    .empty { text-align: center; padding: 40px 20px; color: var(--muted); font-size: .9rem; }
+  </style>
+</head>
+<body>
+
+<!-- Auth Screen -->
+<div id="authScreen">
+  <div class="logo-icon">📡</div>
+  <div class="auth-title">Reply Radar</div>
+  <div class="auth-sub">Sign in with your Microsoft account to scan your inbox for unreplied emails.</div>
+  <button class="sign-in-btn" onclick="signIn()">Sign in with Microsoft</button>
+</div>
+
+<!-- Loading -->
+<div id="loadingScreen">
+  <div class="spinner"></div>
+  <div style="color:var(--muted);font-size:.85rem;">Scanning your inbox…</div>
+</div>
+
+<!-- Main App -->
+<div id="mainApp">
+  <div class="topbar">
+    <div class="logo">
+      <div class="logo-sm">📡</div>
+      <div class="logo-text">Reply Radar</div>
+    </div>
+    <button class="scan-btn" id="scanBtn" onclick="loadEmails()">🔄 Re-scan</button>
+  </div>
+
+  <div class="stats">
+    <div class="stat-card" style="--card-color:var(--accent2)">
+      <div class="stat-num" id="urgentCount">0</div>
+      <div class="stat-label">Urgent</div>
+    </div>
+    <div class="stat-card" style="--card-color:var(--accent)">
+      <div class="stat-num" id="totalCount">0</div>
+      <div class="stat-label">Unreplied</div>
+    </div>
+    <div class="stat-card" style="--card-color:var(--accent3)">
+      <div class="stat-num">30</div>
+      <div class="stat-label">Days Scanned</div>
+    </div>
+  </div>
+
+  <div class="filter-bar">
+    <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
+    <button class="filter-btn" onclick="setFilter('urgent',this)">Urgent</button>
+    <button class="filter-btn" onclick="setFilter('medium',this)">Pending</button>
+    <button class="filter-btn" onclick="setFilter('low',this)">Low</button>
+  </div>
+
+  <div class="email-list" id="emailList"></div>
+  <div class="error-msg" id="errorMsg" style="display:none"></div>
+  <div class="empty" id="emptyMsg" style="display:none">🎉 All caught up! No unreplied emails found.</div>
+</div>
+
+<!-- Reply Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-title">Quick Reply</div>
+    <div class="modal-meta" id="modalMeta"></div>
+    <textarea id="replyText" placeholder="Type your reply…"></textarea>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-send" onclick="sendReply()">Send ↗</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────
+// REPLACE THIS with your Azure App (client) ID from Step 3 of the setup guide
+const CLIENT_ID = 'REPLACE_WITH_YOUR_CLIENT_ID';
+const TENANT_ID = 'common'; // Use 'common' for multi-tenant or paste your Tenant ID
+
+const msalConfig = {
+  auth: {
+    clientId: CLIENT_ID,
+    authority: `https://login.microsoftonline.com/${TENANT_ID}`,
+    redirectUri: window.location.origin
+  },
+  cache: { cacheLocation: 'sessionStorage' }
+};
+
+const SCOPES = ['Mail.Read', 'Mail.Send'];
+const msalInstance = new msal.PublicClientApplication(msalConfig);
+
+let accessToken = null;
+let allEmails = [];
+let dismissedIds = new Set();
+let currentFilter = 'all';
+let openEmailData = null;
+
+// ── INIT ─────────────────────────────────────────────────
+(async function init() {
+  await microsoftTeams.app.initialize().catch(() => {});
+  const accounts = msalInstance.getAllAccounts();
+  if (accounts.length > 0) {
+    msalInstance.setActiveAccount(accounts[0]);
+    await getToken();
+    showApp();
+    await loadEmails();
+  }
+})();
+
+// ── AUTH ─────────────────────────────────────────────────
+async function signIn() {
+  try {
+    const result = await msalInstance.loginPopup({ scopes: SCOPES });
+    msalInstance.setActiveAccount(result.account);
+    await getToken();
+    showApp();
+    await loadEmails();
+  } catch (e) { showError('Sign-in failed: ' + e.message); }
+}
+
+async function getToken() {
+  const result = await msalInstance.acquireTokenSilent({ scopes: SCOPES });
+  accessToken = result.accessToken;
+}
+
+function showApp() {
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('mainApp').style.display = 'block';
+}
+
+// ── LOAD EMAILS via Microsoft Graph ──────────────────────
+async function loadEmails() {
+  showLoading(true);
+  document.getElementById('errorMsg').style.display = 'none';
+  dismissedIds.clear();
+
+  try {
+    await getToken(); // refresh token if needed
+
+    // Fetch messages from last 30 days where sender is external (not me)
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+    const sinceISO = since.toISOString();
+
+    // Get inbox messages received in last 30 days
+    const resp = await fetch(
+      `https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?` +
+      `$filter=receivedDateTime ge ${sinceISO} and isDraft eq false` +
+      `&$select=id,subject,from,receivedDateTime,bodyPreview,conversationId,isRead` +
+      `&$orderby=receivedDateTime desc&$top=100`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error?.message || 'Failed to fetch emails');
+
+    const inbox = data.value || [];
+
+    // Get sent items to find which conversations I replied to
+    const sentResp = await fetch(
+      `https://graph.microsoft.com/v1.0/me/mailFolders/sentitems/messages?` +
+      `$filter=sentDateTime ge ${sinceISO}` +
+      `&$select=conversationId,sentDateTime&$top=200`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    const sentData = await sentResp.json();
+    const repliedConvIds = new Set((sentData.value || []).map(m => m.conversationId));
+
+    // Filter: only show emails I haven't replied to
+    const unreplied = inbox.filter(m => !repliedConvIds.has(m.conversationId));
+
+    // Build display objects with priority
+    const now = Date.now();
+    allEmails = unreplied.map(m => {
+      const ageMs = now - new Date(m.receivedDateTime).getTime();
+      const ageDays = Math.floor(ageMs / 86400000);
+      let priority = 'low';
+      if (ageDays >= 7) priority = 'urgent';
+      else if (ageDays >= 3) priority = 'medium';
+
+      return {
+        id: m.id,
+        conversationId: m.conversationId,
+        from: m.from?.emailAddress?.address || 'Unknown',
+        name: m.from?.emailAddress?.name || 'Unknown',
+        subject: m.subject || '(No subject)',
+        preview: m.bodyPreview || '',
+        ageDays,
+        ageLabel: ageDays === 0 ? 'Today' : ageDays === 1 ? 'Yesterday' : `${ageDays} days ago`,
+        priority
+      };
+    });
+
+    renderEmails();
+  } catch (e) {
+    showError('Could not load emails: ' + e.message);
+  } finally {
+    showLoading(false);
+  }
+}
+
+// ── RENDER ───────────────────────────────────────────────
+function renderEmails() {
+  const list = document.getElementById('emailList');
+  const visible = allEmails.filter(e =>
+    !dismissedIds.has(e.id) &&
+    (currentFilter === 'all' || e.priority === currentFilter)
+  );
+
+  document.getElementById('emptyMsg').style.display = visible.length === 0 ? 'block' : 'none';
+
+  list.innerHTML = visible.map(e => `
+    <div class="email-card ${e.priority}" id="card-${e.id}">
+      <div class="email-from">${e.from}</div>
+      <div class="email-subject">${escHtml(e.subject)}</div>
+      <div class="email-preview">${escHtml(e.preview.substring(0, 120))}…</div>
+      <div class="email-footer">
+        <span class="email-age">${e.ageLabel}</span>
+        <div class="email-btns">
+          <button class="reply-btn" onclick='openModal(${JSON.stringify(e)})'>↩ Reply</button>
+          <button class="dismiss-btn" onclick="dismiss('${e.id}')">✕</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  const remaining = allEmails.filter(e => !dismissedIds.has(e.id));
+  document.getElementById('totalCount').textContent = remaining.length;
+  document.getElementById('urgentCount').textContent = remaining.filter(e => e.priority === 'urgent').length;
+}
+
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderEmails();
+}
+
+function dismiss(id) {
+  dismissedIds.add(id);
+  renderEmails();
+}
+
+// ── MODAL & REPLY ─────────────────────────────────────────
+function openModal(email) {
+  openEmailData = email;
+  document.getElementById('modalMeta').textContent = `To: ${email.from} · Re: ${email.subject}`;
+  document.getElementById('replyText').value = '';
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+  openEmailData = null;
+}
+
+async function sendReply() {
+  if (!openEmailData) return;
+  const body = document.getElementById('replyText').value.trim();
+  if (!body) return;
+
+  try {
+    await getToken();
+    const payload = {
+      message: {
+        subject: `Re: ${openEmailData.subject}`,
+        body: { contentType: 'Text', content: body },
+        toRecipients: [{ emailAddress: { address: openEmailData.from, name: openEmailData.name } }]
+      }
+    };
+    const resp = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!resp.ok) throw new Error('Send failed');
+
+    dismissedIds.add(openEmailData.id);
+    closeModal();
+    renderEmails();
+    showToast('✓ Reply sent!');
+  } catch (e) {
+    showToast('❌ Failed to send: ' + e.message);
+  }
+}
+
+// ── HELPERS ───────────────────────────────────────────────
+function showLoading(on) {
+  document.getElementById('loadingScreen').style.display = on ? 'flex' : 'none';
+  document.getElementById('mainApp').style.display = on ? 'none' : 'block';
+  document.getElementById('authScreen').style.display = 'none';
+}
+function showError(msg) {
+  const el = document.getElementById('errorMsg');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+document.getElementById('modalOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+</script>
+</body>
+</html>
