@@ -268,6 +268,7 @@
         <div class="stat-dot" style="background:var(--green)"></div>
         <span id="doneStat">0 done</span>
       </div>
+      <button class="icon-btn" onclick="openCheckinSettings()">🔔 Check-ins</button>
       <button class="icon-btn" onclick="promptNewKey()">⚙ Key</button>
     </div>
   </div>
@@ -395,9 +396,10 @@ function launchApp() {
   renderTodos();
   renderChat();
   scheduleAllReminders();
+  scheduleDailyCheckins();
   requestNotificationPermission();
   if (chatHistory.length === 0) {
-    pushAssistantMsg("Hi! I'm TaskMind, your AI to-do assistant.\n\nHere's what I can do:\n• **Add tasks** — just tell me what you need to do\n• **Set reminders** — \"remind me about X at 3pm\"\n• **Break down goals** — \"help me plan a trip to Italy\"\n• **Prioritize** — \"what should I focus on first?\"\n\nWhat's on your plate today?");
+    pushAssistantMsg("Hi! I'm TaskMind, your AI to-do assistant.\n\nHere's what I can do:\n• **Add tasks** — just tell me what you need to do\n• **Set reminders** — \"remind me about X at 3pm\"\n• **Break down goals** — \"help me plan a trip to Italy\"\n• **Prioritize** — \"what should I focus on first?\"\n\nI'll also check in with you throughout the day to keep you on track. What's on your plate today?");
   }
 }
 
@@ -425,6 +427,79 @@ function fireReminder(task) {
   }
   showToast(`Reminder: ${task.title}`);
   pushAssistantMsg(`⏰ **Reminder:** ${task.title}\n\nWould you like help tackling this?`);
+}
+
+// ── DAILY CHECK-INS ────────────────────────────────────────
+// Default check-in hours (24h). Users can adjust in the UI.
+const DEFAULT_CHECKIN_HOURS = [9, 13, 17, 20];
+
+function getCheckinHours() {
+  return JSON.parse(localStorage.getItem('taskmind_checkin_hours') || JSON.stringify(DEFAULT_CHECKIN_HOURS));
+}
+
+function saveCheckinHours(hours) {
+  localStorage.setItem('taskmind_checkin_hours', JSON.stringify(hours));
+}
+
+function msUntilHour(hour) {
+  const now = new Date();
+  const target = new Date(now);
+  target.setHours(hour, 0, 0, 0);
+  if (target <= now) target.setDate(target.getDate() + 1);
+  return target.getTime() - now.getTime();
+}
+
+function scheduleDailyCheckins() {
+  const hours = getCheckinHours();
+  hours.forEach(hour => {
+    const ms = msUntilHour(hour);
+    setTimeout(() => {
+      fireDailyCheckin(hour);
+      // Reschedule every 24h
+      setInterval(() => fireDailyCheckin(hour), 24 * 60 * 60 * 1000);
+    }, ms);
+  });
+}
+
+function fireDailyCheckin(hour) {
+  const active = todos.filter(t => !t.completed);
+  if (active.length === 0) return;
+
+  const urgent = active.filter(t => t.priority === 'urgent');
+  const label = hour < 12 ? 'morning' : hour < 16 ? 'afternoon' : hour < 19 ? 'evening' : 'night';
+  const greeting = hour < 12 ? 'Good morning' : hour < 16 ? 'Hey' : hour < 19 ? 'Good evening' : 'Quick check';
+
+  const taskLines = active.slice(0, 5).map(t => `• ${t.title}`).join('\n');
+  const more = active.length > 5 ? `\n• ...and ${active.length - 5} more` : '';
+
+  const msg = `${greeting}! Here's your ${label} check-in ☀️\n\nYou have **${active.length} task${active.length !== 1 ? 's' : ''}** pending${urgent.length ? ` (${urgent.length} urgent)` : ''}:\n\n${taskLines}${more}\n\nWant help prioritizing or tackling any of these?`;
+
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification('TaskMind Check-in', {
+      body: `${active.length} task${active.length !== 1 ? 's' : ''} pending${urgent.length ? ` · ${urgent.length} urgent` : ''}`
+    });
+  }
+  pushAssistantMsg(msg);
+}
+
+function openCheckinSettings() {
+  const hours = getCheckinHours();
+  const input = prompt(
+    'Set daily check-in hours (comma-separated, 24h format).\nCurrent: ' + hours.join(', '),
+    hours.join(', ')
+  );
+  if (input === null) return;
+  const parsed = input.split(',').map(s => parseInt(s.trim(), 10)).filter(h => h >= 0 && h <= 23);
+  if (!parsed.length) { showToast('No valid hours entered'); return; }
+  saveCheckinHours(parsed);
+  showToast(`Check-ins set for: ${parsed.map(h => `${h}:00`).join(', ')}`);
+  pushAssistantMsg(`Got it! I'll check in with you at: **${parsed.map(h => fmtHour(h)).join(', ')}** each day.`);
+}
+
+function fmtHour(h) {
+  const ampm = h < 12 ? 'am' : 'pm';
+  const hr = h % 12 || 12;
+  return `${hr}${ampm}`;
 }
 
 // ── TODO OPERATIONS ────────────────────────────────────────
