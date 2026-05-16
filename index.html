@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TaskMind — AI Todo Assistant</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0e0f14; --surface: #16181f; --surface2: #1e2029;
+      --border: #2a2d3a; --accent: #f5a623; --accent2: #e85d5d;
+      --accent3: #4ecdc4; --text: #eeeef2; --muted: #6b6f82; --green: #5cb85c;
+    }
+    body { font-family: 'Syne', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* ── SETUP SCREEN ── */
+    #setupScreen {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 100vh; gap: 18px; padding: 24px; text-align: center;
+    }
+    .logo-icon { width: 68px; height: 68px; background: var(--accent); border-radius: 18px; display: grid; place-items: center; font-size: 34px; margin: 0 auto; }
+    .setup-title { font-size: 2rem; font-weight: 800; }
+    .setup-sub { color: var(--muted); font-size: .9rem; max-width: 340px; line-height: 1.7; }
+    .api-input {
+      width: 100%; max-width: 400px; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--text); font-family: 'DM Mono', monospace; font-size: .85rem;
+      padding: 13px 16px; outline: none; transition: border-color .2s;
+    }
+    .api-input:focus { border-color: var(--accent); }
+    .setup-btn {
+      background: var(--accent); color: #000; border: none; border-radius: 10px;
+      padding: 13px; font-weight: 800; font-size: .95rem; cursor: pointer;
+      font-family: 'Syne', sans-serif; transition: background .15s;
+      width: 100%; max-width: 400px;
+    }
+    .setup-btn:hover { background: #ffc14d; }
+    .setup-note { font-size: .74rem; color: var(--muted); max-width: 340px; line-height: 1.6; }
+
+    /* ── MAIN APP ── */
+    #mainApp { display: none; height: 100vh; flex-direction: column; }
+
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 13px 16px; border-bottom: 1px solid var(--border);
+      background: var(--surface); flex-shrink: 0;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-sm { width: 32px; height: 32px; background: var(--accent); border-radius: 9px; display: grid; place-items: center; font-size: 17px; }
+    .logo-text { font-size: 1.05rem; font-weight: 800; }
+    .topbar-right { display: flex; align-items: center; gap: 8px; }
+    .stat-pill {
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 20px;
+      padding: 4px 11px; font-size: .7rem; font-weight: 700; display: flex; align-items: center; gap: 5px;
+    }
+    .stat-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .icon-btn {
+      background: transparent; border: 1px solid var(--border); color: var(--muted); border-radius: 7px;
+      padding: 5px 10px; font-size: .7rem; cursor: pointer; font-family: 'Syne', sans-serif;
+      transition: all .15s;
+    }
+    .icon-btn:hover { color: var(--text); border-color: var(--muted); }
+
+    /* Mobile tabs */
+    .tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+    .tab-btn {
+      flex: 1; padding: 11px; font-size: .76rem; font-weight: 700; cursor: pointer; background: none;
+      border: none; color: var(--muted); font-family: 'Syne', sans-serif;
+      border-bottom: 2px solid transparent; transition: all .2s; text-transform: uppercase; letter-spacing: .5px;
+    }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* Two-column body */
+    .app-body { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── TODO PANEL ── */
+    .todo-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--border); }
+    .todo-header { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 9px; flex-shrink: 0; }
+    .add-task-row { display: flex; gap: 7px; }
+    .task-input {
+      flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 9px;
+      color: var(--text); font-family: 'Syne', sans-serif; font-size: .85rem; padding: 9px 13px;
+      outline: none; transition: border-color .2s;
+    }
+    .task-input:focus { border-color: var(--accent); }
+    .add-btn {
+      background: var(--accent); color: #000; border: none; border-radius: 9px;
+      padding: 9px 14px; font-weight: 800; font-size: .78rem; cursor: pointer;
+      font-family: 'Syne', sans-serif; white-space: nowrap; transition: background .15s;
+    }
+    .add-btn:hover { background: #ffc14d; }
+    .add-more-btn {
+      background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 9px;
+      padding: 9px 12px; font-weight: 700; font-size: .82rem; cursor: pointer;
+      font-family: 'Syne', sans-serif; transition: all .15s;
+    }
+    .add-more-btn:hover { border-color: var(--accent3); color: var(--accent3); }
+
+    .filter-bar { display: flex; gap: 6px; flex-wrap: wrap; }
+    .filter-btn {
+      background: var(--surface2); border: 1px solid var(--border); color: var(--muted);
+      border-radius: 7px; padding: 4px 10px; font-size: .64rem; font-weight: 700; cursor: pointer;
+      font-family: 'Syne', sans-serif; transition: all .15s; text-transform: uppercase; letter-spacing: .5px;
+    }
+    .filter-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+    .todo-list { flex: 1; overflow-y: auto; padding: 11px 14px; display: flex; flex-direction: column; gap: 8px; }
+
+    .task-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 11px 13px; position: relative; overflow: hidden; transition: border-color .2s, opacity .3s;
+    }
+    .task-card:hover { border-color: var(--accent3); }
+    .task-card.completed { opacity: .45; }
+    .task-card.urgent::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--accent2); border-radius: 3px 0 0 3px; }
+    .task-card.medium::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--accent); border-radius: 3px 0 0 3px; }
+    .task-card.low::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--muted); border-radius: 3px 0 0 3px; }
+
+    .task-top { display: flex; align-items: flex-start; gap: 9px; }
+    .task-check {
+      width: 19px; height: 19px; border: 2px solid var(--border); border-radius: 5px; flex-shrink: 0;
+      cursor: pointer; display: grid; place-items: center; font-size: 11px; transition: all .15s; margin-top: 1px;
+    }
+    .task-check:hover { border-color: var(--green); }
+    .task-card.completed .task-check { background: var(--green); border-color: var(--green); color: #fff; }
+    .task-title { font-size: .87rem; font-weight: 700; line-height: 1.35; flex: 1; }
+    .task-card.completed .task-title { text-decoration: line-through; color: var(--muted); }
+    .task-actions { display: flex; gap: 3px; flex-shrink: 0; }
+    .task-action-btn {
+      background: transparent; border: none; color: var(--muted); cursor: pointer;
+      font-size: .74rem; padding: 2px 6px; border-radius: 4px; transition: all .15s;
+    }
+    .task-action-btn:hover { color: var(--text); background: var(--surface2); }
+
+    .task-meta { display: flex; align-items: flex-start; gap: 8px; margin-top: 7px; padding-left: 28px; flex-wrap: wrap; }
+    .task-notes { font-size: .73rem; color: var(--muted); line-height: 1.45; width: 100%; }
+    .task-badges { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+    .priority-badge {
+      font-size: .58rem; font-weight: 700; padding: 2px 7px; border-radius: 10px;
+      text-transform: uppercase; letter-spacing: .5px;
+    }
+    .priority-badge.urgent { background: rgba(232,93,93,.15); color: var(--accent2); }
+    .priority-badge.medium { background: rgba(245,166,35,.15); color: var(--accent); }
+    .priority-badge.low { background: rgba(107,111,130,.15); color: var(--muted); }
+    .due-badge { font-size: .63rem; color: var(--accent3); font-family: 'DM Mono', monospace; }
+    .due-badge.overdue { color: var(--accent2); }
+
+    .empty-todos { text-align: center; padding: 40px 20px; color: var(--muted); font-size: .88rem; line-height: 1.6; }
+
+    /* ── CHAT PANEL ── */
+    .chat-panel { width: 420px; flex-shrink: 0; display: flex; flex-direction: column; overflow: hidden; }
+    .chat-messages { flex: 1; overflow-y: auto; padding: 14px 14px 10px; display: flex; flex-direction: column; gap: 10px; }
+
+    .msg { display: flex; flex-direction: column; gap: 3px; max-width: 88%; }
+    .msg.user { align-self: flex-end; align-items: flex-end; }
+    .msg.assistant { align-self: flex-start; align-items: flex-start; }
+    .msg-bubble { padding: 10px 13px; border-radius: 14px; font-size: .84rem; line-height: 1.55; }
+    .msg.user .msg-bubble { background: var(--accent); color: #000; border-radius: 14px 14px 4px 14px; font-weight: 600; }
+    .msg.assistant .msg-bubble { background: var(--surface); border: 1px solid var(--border); border-radius: 14px 14px 14px 4px; }
+    .msg-time { font-size: .6rem; color: var(--muted); font-family: 'DM Mono', monospace; }
+
+    .typing-indicator { display: flex; gap: 4px; padding: 12px 14px; align-items: center; }
+    .typing-dot { width: 7px; height: 7px; background: var(--muted); border-radius: 50%; animation: bounce .8s infinite; }
+    .typing-dot:nth-child(2) { animation-delay: .16s; }
+    .typing-dot:nth-child(3) { animation-delay: .32s; }
+    @keyframes bounce { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }
+
+    .chat-input-wrap {
+      padding: 10px 13px; border-top: 1px solid var(--border); background: var(--surface);
+      display: flex; gap: 8px; align-items: flex-end; flex-shrink: 0;
+    }
+    .chat-input {
+      flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+      color: var(--text); font-family: 'Syne', sans-serif; font-size: .84rem; padding: 9px 13px;
+      outline: none; resize: none; transition: border-color .2s; line-height: 1.45; max-height: 100px;
+    }
+    .chat-input:focus { border-color: var(--accent3); }
+    .send-btn {
+      background: var(--accent3); color: #000; border: none; border-radius: 10px;
+      padding: 9px 15px; font-weight: 800; font-size: .78rem; cursor: pointer;
+      font-family: 'Syne', sans-serif; transition: background .15s; white-space: nowrap;
+    }
+    .send-btn:hover { background: #3db8b0; }
+    .send-btn:disabled { opacity: .5; cursor: default; }
+
+    /* ── MODAL ── */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.75); z-index: 100; place-items: center; }
+    .modal-overlay.open { display: grid; }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; width: 92%; max-width: 440px; padding: 22px; }
+    .modal-title { font-size: 1rem; font-weight: 800; margin-bottom: 16px; }
+    .form-group { margin-bottom: 11px; }
+    .form-label { font-size: .68rem; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 5px; display: block; }
+    .form-input {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text); font-family: 'Syne', sans-serif; font-size: .84rem; padding: 9px 12px;
+      outline: none; transition: border-color .2s;
+    }
+    .form-input:focus { border-color: var(--accent); }
+    .form-select {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text); font-family: 'Syne', sans-serif; font-size: .84rem; padding: 9px 12px; outline: none; cursor: pointer;
+    }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+    .btn-primary {
+      background: var(--accent); color: #000; border: none; border-radius: 7px;
+      padding: 9px 20px; font-weight: 800; font-size: .78rem; cursor: pointer; font-family: 'Syne', sans-serif;
+    }
+    .btn-secondary {
+      background: transparent; border: 1px solid var(--border); color: var(--muted); border-radius: 7px;
+      padding: 9px 14px; font-size: .78rem; cursor: pointer; font-family: 'Syne', sans-serif;
+    }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(80px);
+      background: var(--surface); border: 1px solid var(--border); color: var(--text);
+      padding: 9px 20px; border-radius: 30px; font-weight: 700; font-size: .78rem;
+      transition: transform .3s; z-index: 200; white-space: nowrap; pointer-events: none;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 700px) {
+      .chat-panel { width: 100%; }
+      .app-body { flex-direction: column; }
+      .todo-panel { border-right: none; flex: none; height: 55vh; }
+      .chat-panel { height: 45vh; }
+      .todo-panel.tab-hidden, .chat-panel.tab-hidden { display: none; }
+      .todo-panel.tab-hidden + .chat-panel { height: 100%; }
+      .todo-panel:not(.tab-hidden) { height: 100%; }
+    }
+    @media (min-width: 701px) {
+      .tabs { display: none; }
+      .todo-panel, .chat-panel { display: flex !important; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Setup Screen -->
+<div id="setupScreen">
+  <div class="logo-icon">🧠</div>
+  <div class="setup-title">TaskMind</div>
+  <div class="setup-sub">Your AI-powered to-do assistant. Enter your Anthropic API key to get started — it's stored only in your browser.</div>
+  <input class="api-input" type="password" id="apiKeyInput" placeholder="sk-ant-..." onkeydown="if(event.key==='Enter')saveApiKey()" />
+  <button class="setup-btn" onclick="saveApiKey()">Get Started →</button>
+  <div class="setup-note">Your key is saved in localStorage and sent only to Anthropic's API — never stored on any server.</div>
+</div>
+
+<!-- Main App -->
+<div id="mainApp">
+  <div class="topbar">
+    <div class="logo">
+      <div class="logo-sm">🧠</div>
+      <div class="logo-text">TaskMind</div>
+    </div>
+    <div class="topbar-right">
+      <div class="stat-pill">
+        <div class="stat-dot" style="background:var(--accent2)"></div>
+        <span id="urgentStat">0 urgent</span>
+      </div>
+      <div class="stat-pill">
+        <div class="stat-dot" style="background:var(--green)"></div>
+        <span id="doneStat">0 done</span>
+      </div>
+      <button class="icon-btn" onclick="promptNewKey()">⚙ Key</button>
+    </div>
+  </div>
+
+  <!-- Mobile tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('todos', this)">Todos</button>
+    <button class="tab-btn" onclick="switchTab('chat', this)">AI Chat</button>
+  </div>
+
+  <div class="app-body">
+    <!-- Todo Panel -->
+    <div class="todo-panel" id="todosPanel">
+      <div class="todo-header">
+        <div class="add-task-row">
+          <input class="task-input" id="quickTaskInput" placeholder="Quick add a task..." onkeydown="if(event.key==='Enter')quickAddTask()" />
+          <button class="add-btn" onclick="quickAddTask()">+ Add</button>
+          <button class="add-more-btn" onclick="openAddModal()" title="Add with more details">⋯</button>
+        </div>
+        <div class="filter-bar">
+          <button class="filter-btn active" onclick="setFilter('active',this)">Active</button>
+          <button class="filter-btn" onclick="setFilter('all',this)">All</button>
+          <button class="filter-btn" onclick="setFilter('urgent',this)">Urgent</button>
+          <button class="filter-btn" onclick="setFilter('completed',this)">Done</button>
+        </div>
+      </div>
+      <div class="todo-list" id="todoList"></div>
+    </div>
+
+    <!-- Chat Panel -->
+    <div class="chat-panel" id="chatPanel">
+      <div class="chat-messages" id="chatMessages"></div>
+      <div class="chat-input-wrap">
+        <textarea class="chat-input" id="chatInput" placeholder="Ask me to add tasks, set reminders, or help you plan..." rows="1"
+          onkeydown="handleChatKey(event)" oninput="autoResize(this)"></textarea>
+        <button class="send-btn" id="sendBtn" onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Task Modal -->
+<div class="modal-overlay" id="taskModal">
+  <div class="modal">
+    <div class="modal-title" id="modalHeading">Add Task</div>
+    <div class="form-group">
+      <label class="form-label">Task</label>
+      <input class="form-input" id="modalTitle" placeholder="What needs to be done?" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notes (optional)</label>
+      <input class="form-input" id="modalNotes" placeholder="Any details or context..." />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Priority</label>
+      <select class="form-select" id="modalPriority">
+        <option value="low">Low</option>
+        <option value="medium" selected>Medium</option>
+        <option value="urgent">Urgent</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Due Date (optional)</label>
+      <input class="form-input" type="datetime-local" id="modalDue" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Reminder (optional)</label>
+      <input class="form-input" type="datetime-local" id="modalReminder" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveTaskFromModal()">Save Task</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── STATE ──────────────────────────────────────────────────
+let todos = [];
+let chatHistory = [];
+let currentFilter = 'active';
+let apiKey = '';
+let editingTaskId = null;
+let reminderTimers = {};
+let isTyping = false;
+
+// ── INIT ──────────────────────────────────────────────────
+function init() {
+  apiKey = localStorage.getItem('taskmind_key') || '';
+  todos = JSON.parse(localStorage.getItem('taskmind_todos') || '[]');
+  chatHistory = JSON.parse(localStorage.getItem('taskmind_chat') || '[]');
+
+  if (apiKey) {
+    launchApp();
+  }
+  // else setup screen is visible by default
+}
+
+function saveApiKey() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  if (!key) { showToast('Please paste your API key'); return; }
+  apiKey = key;
+  localStorage.setItem('taskmind_key', key);
+  launchApp();
+}
+
+function promptNewKey() {
+  const key = prompt('Paste a new Anthropic API key (blank to clear):');
+  if (key === null) return;
+  if (key.trim()) {
+    apiKey = key.trim();
+    localStorage.setItem('taskmind_key', apiKey);
+    showToast('API key updated');
+  } else {
+    localStorage.removeItem('taskmind_key');
+    location.reload();
+  }
+}
+
+function launchApp() {
+  document.getElementById('setupScreen').style.display = 'none';
+  document.getElementById('mainApp').style.display = 'flex';
+  renderTodos();
+  renderChat();
+  scheduleAllReminders();
+  requestNotificationPermission();
+  if (chatHistory.length === 0) {
+    pushAssistantMsg("Hi! I'm TaskMind, your AI to-do assistant.\n\nHere's what I can do:\n• **Add tasks** — just tell me what you need to do\n• **Set reminders** — \"remind me about X at 3pm\"\n• **Break down goals** — \"help me plan a trip to Italy\"\n• **Prioritize** — \"what should I focus on first?\"\n\nWhat's on your plate today?");
+  }
+}
+
+// ── NOTIFICATIONS ──────────────────────────────────────────
+async function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    await Notification.requestPermission();
+  }
+}
+
+function scheduleAllReminders() {
+  todos.forEach(t => { if (t.reminderTime && !t.completed) scheduleReminder(t); });
+}
+
+function scheduleReminder(task) {
+  const ms = new Date(task.reminderTime).getTime() - Date.now();
+  if (ms <= 0) return;
+  if (reminderTimers[task.id]) clearTimeout(reminderTimers[task.id]);
+  reminderTimers[task.id] = setTimeout(() => fireReminder(task), Math.min(ms, 2147483647));
+}
+
+function fireReminder(task) {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification('TaskMind Reminder', { body: task.title });
+  }
+  showToast(`Reminder: ${task.title}`);
+  pushAssistantMsg(`⏰ **Reminder:** ${task.title}\n\nWould you like help tackling this?`);
+}
+
+// ── TODO OPERATIONS ────────────────────────────────────────
+function genId() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+
+function saveTodos() {
+  localStorage.setItem('taskmind_todos', JSON.stringify(todos));
+  updateStats();
+}
+
+function addTask(title, { notes = '', priority = 'medium', due = null, reminderTime = null } = {}) {
+  const task = {
+    id: genId(), title: title.trim(), notes, priority, due,
+    reminderTime, completed: false, createdAt: new Date().toISOString()
+  };
+  todos.unshift(task);
+  saveTodos();
+  if (reminderTime) scheduleReminder(task);
+  renderTodos();
+  return task;
+}
+
+function toggleComplete(id) {
+  const t = todos.find(t => t.id === id);
+  if (!t) return;
+  t.completed = !t.completed;
+  saveTodos();
+  renderTodos();
+}
+
+function deleteTask(id) {
+  todos = todos.filter(t => t.id !== id);
+  if (reminderTimers[id]) { clearTimeout(reminderTimers[id]); delete reminderTimers[id]; }
+  saveTodos();
+  renderTodos();
+}
+
+function quickAddTask() {
+  const input = document.getElementById('quickTaskInput');
+  const title = input.value.trim();
+  if (!title) return;
+  addTask(title);
+  input.value = '';
+  showToast('Task added');
+}
+
+// ── RENDER TODOS ───────────────────────────────────────────
+function renderTodos() {
+  const list = document.getElementById('todoList');
+  let filtered;
+  if (currentFilter === 'active') filtered = todos.filter(t => !t.completed);
+  else if (currentFilter === 'completed') filtered = todos.filter(t => t.completed);
+  else if (currentFilter === 'urgent') filtered = todos.filter(t => t.priority === 'urgent' && !t.completed);
+  else filtered = todos;
+
+  if (filtered.length === 0) {
+    const msg = currentFilter === 'completed'
+      ? 'No completed tasks yet.'
+      : currentFilter === 'urgent'
+      ? 'No urgent tasks — nice!'
+      : 'No tasks here. Add one above or ask the AI!';
+    list.innerHTML = `<div class="empty-todos">${msg}</div>`;
+    return;
+  }
+
+  const now = Date.now();
+  list.innerHTML = filtered.map(task => {
+    const overdue = task.due && new Date(task.due).getTime() < now && !task.completed;
+    return `
+      <div class="task-card ${task.priority} ${task.completed ? 'completed' : ''}">
+        <div class="task-top">
+          <div class="task-check" onclick="toggleComplete('${task.id}')">${task.completed ? '✓' : ''}</div>
+          <div class="task-title">${escHtml(task.title)}</div>
+          <div class="task-actions">
+            <button class="task-action-btn" onclick="openEditModal('${task.id}')" title="Edit">✏</button>
+            <button class="task-action-btn" onclick="deleteTask('${task.id}')" title="Delete">✕</button>
+          </div>
+        </div>
+        ${task.notes || task.due || task.reminderTime ? `
+          <div class="task-meta">
+            ${task.notes ? `<div class="task-notes">${escHtml(task.notes)}</div>` : ''}
+            <div class="task-badges">
+              <span class="priority-badge ${task.priority}">${task.priority}</span>
+              ${task.due ? `<span class="due-badge ${overdue ? 'overdue' : ''}">📅 ${fmtDate(task.due, overdue)}</span>` : ''}
+              ${task.reminderTime ? `<span class="due-badge">⏰ ${fmtDate(task.reminderTime)}</span>` : ''}
+            </div>
+          </div>
+        ` : ''}
+      </div>`;
+  }).join('');
+
+  updateStats();
+}
+
+function fmtDate(iso, overdue) {
+  const d = new Date(iso);
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  const isTmrw = d.toDateString() === new Date(+now + 86400000).toDateString();
+  const t = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (overdue) return `Overdue · ${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}`;
+  if (isToday) return `Today ${t}`;
+  if (isTmrw) return `Tomorrow ${t}`;
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + t;
+}
+
+function updateStats() {
+  const active = todos.filter(t => !t.completed);
+  document.getElementById('urgentStat').textContent = `${active.filter(t => t.priority === 'urgent').length} urgent`;
+  document.getElementById('doneStat').textContent = `${todos.filter(t => t.completed).length} done`;
+}
+
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTodos();
+}
+
+// ── MODAL ──────────────────────────────────────────────────
+function openAddModal() {
+  editingTaskId = null;
+  document.getElementById('modalHeading').textContent = 'Add Task';
+  document.getElementById('modalTitle').value = '';
+  document.getElementById('modalNotes').value = '';
+  document.getElementById('modalPriority').value = 'medium';
+  document.getElementById('modalDue').value = '';
+  document.getElementById('modalReminder').value = '';
+  document.getElementById('taskModal').classList.add('open');
+  setTimeout(() => document.getElementById('modalTitle').focus(), 50);
+}
+
+function openEditModal(id) {
+  const task = todos.find(t => t.id === id);
+  if (!task) return;
+  editingTaskId = id;
+  document.getElementById('modalHeading').textContent = 'Edit Task';
+  document.getElementById('modalTitle').value = task.title;
+  document.getElementById('modalNotes').value = task.notes || '';
+  document.getElementById('modalPriority').value = task.priority;
+  document.getElementById('modalDue').value = task.due ? new Date(task.due).toISOString().slice(0, 16) : '';
+  document.getElementById('modalReminder').value = task.reminderTime ? new Date(task.reminderTime).toISOString().slice(0, 16) : '';
+  document.getElementById('taskModal').classList.add('open');
+}
+
+function saveTaskFromModal() {
+  const title = document.getElementById('modalTitle').value.trim();
+  if (!title) { showToast('Please enter a task title'); return; }
+  const due = document.getElementById('modalDue').value;
+  const rem = document.getElementById('modalReminder').value;
+
+  if (editingTaskId) {
+    const task = todos.find(t => t.id === editingTaskId);
+    if (task) {
+      task.title = title;
+      task.notes = document.getElementById('modalNotes').value.trim();
+      task.priority = document.getElementById('modalPriority').value;
+      task.due = due ? new Date(due).toISOString() : null;
+      task.reminderTime = rem ? new Date(rem).toISOString() : null;
+      if (task.reminderTime) scheduleReminder(task);
+      saveTodos();
+      renderTodos();
+      showToast('Task updated');
+    }
+  } else {
+    addTask(title, {
+      notes: document.getElementById('modalNotes').value.trim(),
+      priority: document.getElementById('modalPriority').value,
+      due: due ? new Date(due).toISOString() : null,
+      reminderTime: rem ? new Date(rem).toISOString() : null
+    });
+    showToast('Task added');
+  }
+  closeModal();
+}
+
+function closeModal() {
+  document.getElementById('taskModal').classList.remove('open');
+  editingTaskId = null;
+}
+
+document.getElementById('taskModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+
+// ── CHAT ──────────────────────────────────────────────────
+function saveChat() { localStorage.setItem('taskmind_chat', JSON.stringify(chatHistory.slice(-60))); }
+
+function pushAssistantMsg(content) {
+  chatHistory.push({ role: 'assistant', content });
+  saveChat();
+  appendMsg('assistant', content);
+}
+
+function appendMsg(role, content) {
+  const container = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  div.innerHTML = `<div class="msg-bubble">${mdToHtml(content)}</div><div class="msg-time">${time}</div>`;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function renderChat() {
+  const container = document.getElementById('chatMessages');
+  container.innerHTML = '';
+  chatHistory.forEach(m => appendMsg(m.role, m.content));
+}
+
+function mdToHtml(text) {
+  return escHtml(text)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`(.+?)`/g, '<code style="background:var(--surface2);padding:1px 5px;border-radius:3px;font-family:\'DM Mono\',monospace;font-size:.8em">$1</code>')
+    .replace(/•/g, '•')
+    .replace(/\n/g, '<br>');
+}
+
+function handleChatKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+}
+
+function showTyping() {
+  hideTyping();
+  const container = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.id = 'typingDot';
+  div.className = 'msg assistant';
+  div.innerHTML = `<div class="msg-bubble"><div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>`;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function hideTyping() {
+  const el = document.getElementById('typingDot');
+  if (el) el.remove();
+}
+
+async function sendMessage() {
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text || isTyping) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+  isTyping = true;
+  document.getElementById('sendBtn').disabled = true;
+
+  chatHistory.push({ role: 'user', content: text });
+  saveChat();
+  appendMsg('user', text);
+  showTyping();
+
+  try {
+    const raw = await callClaude(text);
+    hideTyping();
+    const { message, actions } = parseAIResponse(raw);
+    if (actions.length) runActions(actions);
+    pushAssistantMsg(message);
+  } catch (e) {
+    hideTyping();
+    pushAssistantMsg(`Sorry, something went wrong: ${e.message}\n\nPlease check your API key in ⚙ Key.`);
+  } finally {
+    isTyping = false;
+    document.getElementById('sendBtn').disabled = false;
+  }
+}
+
+function buildSystem() {
+  const active = todos.filter(t => !t.completed);
+  const done = todos.filter(t => t.completed);
+  const taskList = active.length
+    ? active.map(t => `  - [ID:${t.id}] [${t.priority}] ${t.title}${t.notes ? ` (${t.notes})` : ''}${t.due ? ` [due: ${fmtDate(t.due)}]` : ''}`).join('\n')
+    : '  (none)';
+
+  return `You are TaskMind, a warm, practical AI to-do assistant. Today is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.
+
+CURRENT TODO LIST (${active.length} active, ${done.length} completed):
+${taskList}
+
+INSTRUCTIONS:
+When the user wants to add, complete, or delete tasks, include a JSON actions block in your response.
+Wrap it in triple-backtick "actions" fences BEFORE your message text.
+
+\`\`\`actions
+{
+  "actions": [
+    {"type": "add_task", "title": "...", "priority": "urgent|medium|low", "due": "ISO8601 or null", "notes": "...", "reminderTime": "ISO8601 or null"},
+    {"type": "complete_task", "id": "exact_task_id"},
+    {"type": "delete_task", "id": "exact_task_id"},
+    {"type": "set_reminder", "id": "exact_task_id", "reminderTime": "ISO8601"}
+  ]
+}
+\`\`\`
+
+GUIDELINES:
+- Be friendly, concise, and encouraging
+- When user gives a list of things to do, add them all at once
+- Infer priority: "ASAP"/"urgent"/"critical" → urgent; most things → medium; "someday"/"eventually" → low
+- For relative dates like "tomorrow at 2pm", resolve to actual ISO datetime
+- After taking actions, confirm briefly what you did in natural language — don't show the raw JSON
+- When asked to break down a task, add the subtasks directly to the list
+- Offer helpful tips when user seems stuck
+- Use **bold** for task names and important things`;
+}
+
+function parseAIResponse(content) {
+  const match = content.match(/```actions\s*([\s\S]*?)```/);
+  let actions = [];
+  let message = content;
+
+  if (match) {
+    try { actions = JSON.parse(match[1]).actions || []; } catch {}
+    message = content.replace(/```actions[\s\S]*?```\s*/g, '').trim();
+  }
+
+  return { message, actions };
+}
+
+function runActions(actions) {
+  let addCount = 0, doneCount = 0, delCount = 0;
+  for (const a of actions) {
+    if (a.type === 'add_task') {
+      addTask(a.title, { notes: a.notes || '', priority: a.priority || 'medium', due: a.due || null, reminderTime: a.reminderTime || null });
+      addCount++;
+    } else if (a.type === 'complete_task') {
+      const t = todos.find(t => t.id === a.id);
+      if (t && !t.completed) { t.completed = true; doneCount++; }
+    } else if (a.type === 'delete_task') {
+      const idx = todos.findIndex(t => t.id === a.id);
+      if (idx !== -1) { todos.splice(idx, 1); delCount++; }
+    } else if (a.type === 'set_reminder') {
+      const t = todos.find(t => t.id === a.id);
+      if (t && a.reminderTime) { t.reminderTime = a.reminderTime; scheduleReminder(t); }
+    }
+  }
+  if (doneCount || delCount) saveTodos();
+  if (addCount || doneCount || delCount) renderTodos();
+}
+
+async function callClaude(userMsg) {
+  const history = chatHistory.slice(-14, -1).map(m => ({ role: m.role, content: m.content }));
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+      'anthropic-dangerous-direct-browser-calls': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1024,
+      system: buildSystem(),
+      messages: [...history, { role: 'user', content: userMsg }]
+    })
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  return data.content[0].text;
+}
+
+// ── MOBILE TABS ────────────────────────────────────────────
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (tab === 'todos') {
+    document.getElementById('todosPanel').classList.remove('tab-hidden');
+    document.getElementById('chatPanel').classList.add('tab-hidden');
+  } else {
+    document.getElementById('todosPanel').classList.add('tab-hidden');
+    document.getElementById('chatPanel').classList.remove('tab-hidden');
+  }
+}
+
+// ── HELPERS ────────────────────────────────────────────────
+function escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+init();
+</script>
+</body>
+</html>
